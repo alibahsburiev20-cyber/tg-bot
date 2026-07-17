@@ -7,10 +7,10 @@ async function generatePost(env, niche, tone, recentTopics) {
 Напиши один пост на 100-150 слов. Не повторяй темы: ${recentTopics.join(", ") || "нет предыдущих тем"}.
 Ответь только текстом поста, без преамбулы и кавычек.`;
 
-  const response = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
+  const response = await env.AI.run("@cf/openai/gpt-oss-20b", {
     messages: [{ role: "user", content: prompt }],
   });
-  return response.response.trim();
+  return (response.response || response.output_text || JSON.stringify(response)).trim();
 }
 
 async function publishToChannel(env, text) {
