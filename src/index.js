@@ -3,14 +3,128 @@
 // Требует binding: DB (D1), AI (Workers AI)
 
 async function generatePost(env, niche, tone, recentTopics) {
+  const avoidList = recentTopics.length > 0
+    ? `Уже писал про: ${recentTopics.join("; ")}. Выбери СОВСЕМ ДРУГУЮ тему, не касайся тех же монет/понятий.`
+    : "Это первый пост, выбери любую конкретную тему.";
+
   const prompt = `Ты ведёшь Telegram-канал на тему "${niche}". Стиль: ${tone || "экспертный, но живой"}.
-Напиши один пост на 100-150 слов. Не повторяй темы: ${recentTopics.join(", ") || "нет предыдущих тем"}.
-Ответь только текстом поста, без преамбулы и кавычек.`;
+${avoidList}
+Возьми узкую конкретную подтему (не общий обзор "что такое крипта", а что-то конкретное: конкретный инструмент, конкретная ошибка новичков, конкретное событие, конкретный термин, конкретная монета/платформа).
+Напиши один пост на 100-150 слов.
+Ответь только текстом поста, без преамбулы, без кавычек, без фразы "Привет всем" в начале — сразу с сути.`;
 
   const response = await env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
     messages: [{ role: "user", content: prompt }],
+    temperature: 0.9,
   });
   return (response.response || "").trim();
+}
+
+async function extractTopic(env, postText) {
+  const response = await env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
+    messages: [{ role: "user", content: `Назови тему этого поста 2-4 словами (например "хранение крипты в холодных кошельках"), без кавычек и пояснений:\n\n${postText}` }],
+    temperature: 0.3,
+  });
+  return (response.response || postText.slice(0, 50)).trim();
+}
+
+// Простой парсер RSS через регулярки (без внешних библиотек)
+function parseRSSItems(xml, limit = 5) {
+  const items = [];
+  const itemBlocks = xml.split("<item>").slice(1, limit + 1);
+  for (const block of itemBlocks) {
+    const title = (block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || "";
+    const link = (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || "";
+    const description = (block.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || "";
+    items.push({
+      title: title.replace(/<!\[CDATA\[|\]\]>/g, "").trim(),
+      link: link.trim(),
+      description: description.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, "").trim(),
+    });
+  }
+  return items;
+}
+
+// Вытаскивает основной текст статьи из HTML-страницы (грубо, по тегам <p>)
+async function fetchArticleText(url) {
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const html = await res.text();
+    const paragraphs = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
+      .map(m => m[1].replace(/<[^>]+>/g, "").trim())
+      .filter(p => p.length > 40);
+    return paragraphs.slice(0, 8).join(" ").slice(0, 3000);
+  } catch (e) {
+    return "";
+  }
+}
+
+async function fetchNews(niche) {
+  const feedUrl = "https://cointelegraph.com/rss";
+  const res = await fetch(feedUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+  const xml = await res.text();
+  const items = parseRSSItems(xml, 5);
+
+  const withFullText = [];
+  for (const item of items) {
+    const fullText = await fetchArticleText(item.link);
+    withFullText.push({ ...item, fullText: fullText || item.description });
+  }
+  return withFullText;
+}
+
+async function generateNewsPost(env, niche, tone, recentTopics, newsItems) {
+  const newsBlock = newsItems
+    .map((n, i) => `[Новость ${i + 1}] Заголовок: ${n.title}\nТекст: ${n.fullText}`)
+    .join("\n\n");
+
+  const avoidList = recentTopics.length > 0
+    ? `Уже писал про: ${recentTopics.join("; ")}. Если все новости пересекаются с этим — выбери ту, что меньше всего пересекается.`
+    : "";
+
+  const prompt = `Ты ведёшь Telegram-канал на тему "${niche}". Стиль: ${tone || "экспертный, но живой"}.
+Вот несколько свежих новостей:
+
+${newsBlock}
+
+Выбери ОДНУ самую значимую и интересную для аудитории новость. Напиши по ней пост на 100-150 слов:
+- Перескажи суть ПОЛНОСТЬЮ СВОИМИ СЛОВАМИ, не используй дословные фразы или предложения из текста новости
+- Структура: что произошло → почему это важно для читателя → короткий вывод/что это значит на практике
+${avoidList}
+Ответь только текстом поста, без преамбулы, без кавычек, без ссылок на источник в тексте.`;
+
+  const response = await env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.8,
+  });
+  return (response.response || "").trim();
+}
+
+async function generateImagePrompt(env, postText) {
+  const response = await env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
+    messages: [{ role: "user", content: `Опиши короткую сцену для иллюстрации к этому посту, на английском, 1-2 предложения, в стиле "digital art, clean, professional" (без текста/букв на картинке):\n\n${postText}` }],
+    temperature: 0.7,
+  });
+  return (response.response || "abstract digital art about finance and technology").trim();
+}
+
+async function generateImage(env, imagePrompt) {
+  const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+    prompt: imagePrompt,
+  });
+  return result.image;
+}
+
+async function publishToChannelWithPhoto(env, text, imageBase64) {
+  const formData = new FormData();
+  formData.append("chat_id", env.CHANNEL_USERNAME);
+  formData.append("caption", text);
+  const bytes = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0));
+  formData.append("photo", new Blob([bytes], { type: "image/png" }), "post.png");
+
+  const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`;
+  const res = await fetch(url, { method: "POST", body: formData });
+  return res.json();
 }
 
 async function publishToChannel(env, text) {
@@ -31,18 +145,50 @@ async function postScheduledContent(env) {
   if (!config) return { error: "no channel config found" };
 
   const recent = await env.DB.prepare(
-    "SELECT topic_tags FROM content_log ORDER BY published_at DESC LIMIT 5"
+    "SELECT topic_tags FROM content_log ORDER BY published_at DESC LIMIT 15"
   ).all();
   const recentTopics = recent.results.map(r => r.topic_tags).filter(Boolean);
 
   const postText = await generatePost(env, config.niche, config.tone, recentTopics);
+  const topic = await extractTopic(env, postText);
   const tgResult = await publishToChannel(env, postText);
 
   await env.DB.prepare(
     "INSERT INTO content_log (post_text, topic_tags) VALUES (?, ?)"
-  ).bind(postText, postText.slice(0, 50)).run();
+  ).bind(postText, topic).run();
 
-  return { posted: true, telegram: tgResult };
+  return { posted: true, topic, telegram: tgResult };
+}
+
+async function postScheduledNewsContent(env) {
+  const config = await env.DB.prepare("SELECT * FROM channel_config LIMIT 1").first();
+  if (!config) return { error: "no channel config found" };
+
+  const recent = await env.DB.prepare(
+    "SELECT topic_tags FROM content_log ORDER BY published_at DESC LIMIT 15"
+  ).all();
+  const recentTopics = recent.results.map(r => r.topic_tags).filter(Boolean);
+
+  const newsItems = await fetchNews(config.niche);
+  if (newsItems.length === 0) return { error: "no news fetched" };
+
+  const postText = await generateNewsPost(env, config.niche, config.tone, recentTopics, newsItems);
+  const topic = await extractTopic(env, postText);
+
+  let tgResult;
+  try {
+    const imagePrompt = await generateImagePrompt(env, postText);
+    const imageBase64 = await generateImage(env, imagePrompt);
+    tgResult = await publishToChannelWithPhoto(env, postText, imageBase64);
+  } catch (e) {
+    tgResult = await publishToChannel(env, postText);
+  }
+
+  await env.DB.prepare(
+    "INSERT INTO content_log (post_text, topic_tags) VALUES (?, ?)"
+  ).bind(postText, topic).run();
+
+  return { posted: true, topic, source: "news", telegram: tgResult };
 }
 
 async function postAdsToChats(env) {
@@ -80,14 +226,18 @@ export default {
       const result = await postScheduledContent(env);
       return Response.json(result);
     }
+    if (url.pathname === "/run-news-content") {
+      const result = await postScheduledNewsContent(env);
+      return Response.json(result);
+    }
     if (url.pathname === "/run-ads") {
       const result = await postAdsToChats(env);
       return Response.json(result);
     }
-    return new Response("Worker is running. Endpoints: /run-content, /run-ads");
+    return new Response("Worker is running. Endpoints: /run-content, /run-news-content, /run-ads");
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(postScheduledContent(env));
+    ctx.waitUntil(postScheduledNewsContent(env));
   },
 };
