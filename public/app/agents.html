@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Агенты — tg-channel-bot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo"><span class="dot"></span> tg-channel-bot</div>
+    <a href="/app/"><span class="icon">◆</span>Дашборд</a>
+    <a href="/app/settings"><span class="icon">⚙</span>Настройки</a>
+    <a href="/app/chats"><span class="icon">☰</span>Мои чаты</a>
+    <a href="/app/ad-texts"><span class="icon">✎</span>Тексты объявлений</a>
+    <a href="/app/agents" class="active"><span class="icon">◈</span>Агенты</a>
+  </div>
+
+  <div class="main">
+    <div class="page-header">
+      <h1>Агенты</h1>
+      <p>Специализированные процессы, которые ведут канал автоматически</p>
+    </div>
+
+    <div class="card">
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div style="flex:1;">
+          <div class="agent-name">Контент-агент</div>
+          <div class="agent-desc">Генерирует посты под нишу и тон, следит за анти-повтором тем</div>
+        </div>
+        <span class="badge ok">Активен</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div style="flex:1;">
+          <div class="agent-name">Новостной агент</div>
+          <div class="agent-desc">Берёт свежие новости, пересказывает своими словами, структурирует пост</div>
+        </div>
+        <span class="badge ok">Активен</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div style="flex:1;">
+          <div class="agent-name">Агент изображений</div>
+          <div class="agent-desc">Формулирует визуальный промпт по смыслу поста и генерирует картинку</div>
+        </div>
+        <span class="badge ok">Активен</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div style="flex:1;">
+          <div class="agent-name">Агент объявлений</div>
+          <div class="agent-desc">Постит объявления о канале в добавленные чаты по расписанию с ротацией текста</div>
+        </div>
+        <span class="badge ok">Активен</span>
+      </div>
+    </div>
+
+    <div class="page-header" style="margin-top: 32px;">
+      <h2 style="font-size: 18px;">Агент-мониторинг</h2>
+      <p>Смотрит на реальные данные канала и подсказывает, что стоит изменить. Финальное решение — за тобой.</p>
+    </div>
+
+    <div class="card">
+      <div id="recommendations">
+        <div class="empty-state">Анализирую данные...</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+async function loadRecommendations() {
+  const res = await fetch('/api/agent-recommendations');
+  const data = await res.json();
+  const box = document.getElementById('recommendations');
+
+  if (!data.recommendations || data.recommendations.length === 0) {
+    box.innerHTML = '<div class="empty-state"><div class="icon">◈</div>Пока недостаточно данных для рекомендаций.<br>Агент начнёт подсказывать, когда накопится история постов и чатов.</div>';
+    return;
+  }
+
+  box.innerHTML = data.recommendations.map(r => `
+    <div class="agent-row">
+      <div class="agent-dot" style="background: var(--warning); box-shadow: 0 0 6px var(--warning);"></div>
+      <div style="flex:1;">
+        <div class="agent-name">${r.title}</div>
+        <div class="agent-desc">${r.reason}</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" style="padding:6px 14px; font-size:13px;" onclick="applyRec('${r.action}', ${r.targetId})">Да</button>
+        <button class="btn btn-secondary" style="padding:6px 14px; font-size:13px;" onclick="dismissRec(this)">Нет</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function applyRec(action, targetId) {
+  await fetch('/api/agent-recommendations/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, targetId }),
+  });
+  loadRecommendations();
+}
+
+function dismissRec(btn) {
+  btn.closest('.agent-row').remove();
+}
+
+loadRecommendations();
+</script>
+</body>
+</html>

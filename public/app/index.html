@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Дашборд — tg-channel-bot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo"><span class="dot"></span> tg-channel-bot</div>
+    <a href="/app/" class="active"><span class="icon">◆</span>Дашборд</a>
+    <a href="/app/settings"><span class="icon">⚙</span>Настройки</a>
+    <a href="/app/chats"><span class="icon">☰</span>Мои чаты</a>
+    <a href="/app/ad-texts"><span class="icon">✎</span>Тексты объявлений</a>
+    <a href="/app/agents"><span class="icon">◈</span>Агенты</a>
+  </div>
+
+  <div class="main">
+    <div class="page-header">
+      <h1>Дашборд</h1>
+      <p id="channel-sub">Загрузка...</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card stat-card">
+        <div class="label">Подписчиков</div>
+        <div class="value accent" id="stat-subs">—</div>
+      </div>
+      <div class="card stat-card">
+        <div class="label">Постов опубликовано</div>
+        <div class="value" id="stat-posts">—</div>
+      </div>
+      <div class="card stat-card">
+        <div class="label">Активных чатов</div>
+        <div class="value" id="stat-chats">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="pulse-wrap">
+        <svg class="pulse-line" viewBox="0 0 400 40" preserveAspectRatio="none">
+          <path d="M0,35 L40,32 L80,30 L120,25 L160,26 L200,18 L240,20 L280,12 L320,14 L360,6 L400,8"/>
+        </svg>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px; margin-bottom: 24px;">
+      <button class="btn" id="btn-generate">Сгенерировать пост сейчас</button>
+      <button class="btn btn-secondary" id="btn-generate-news">Новостной пост с картинкой</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom: 16px; font-size: 16px;">Последние посты</h3>
+      <div id="posts-feed">
+        <div class="empty-state">
+          <div class="icon">◌</div>
+          Загружаем ленту...
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+async function loadDashboard() {
+  const res = await fetch('/api/dashboard');
+  const data = await res.json();
+
+  document.getElementById('channel-sub').textContent =
+    data.channel ? `${data.channel.channel_username} · ${data.channel.niche}` : 'Канал не настроен';
+  document.getElementById('stat-subs').textContent = data.subscribers ?? '—';
+  document.getElementById('stat-posts').textContent = data.postsCount ?? 0;
+  document.getElementById('stat-chats').textContent = data.chatsCount ?? 0;
+
+  const feed = document.getElementById('posts-feed');
+  if (!data.posts || data.posts.length === 0) {
+    feed.innerHTML = '<div class="empty-state"><div class="icon">◌</div>Постов пока нет</div>';
+    return;
+  }
+  feed.innerHTML = data.posts.map(p => `
+    <div class="post-item">
+      <div class="post-text">
+        ${p.post_text}
+        <div class="post-meta mono">${p.topic_tags || ''} · ${new Date(p.published_at).toLocaleString('ru-RU')}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('btn-generate').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  e.target.textContent = 'Генерирую...';
+  await fetch('/run-content');
+  await loadDashboard();
+  e.target.disabled = false;
+  e.target.textContent = 'Сгенерировать пост сейчас';
+});
+
+document.getElementById('btn-generate-news').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  e.target.textContent = 'Генерирую...';
+  await fetch('/run-news-content');
+  await loadDashboard();
+  e.target.disabled = false;
+  e.target.textContent = 'Новостной пост с картинкой';
+});
+
+loadDashboard();
+</script>
+</body>
+</html>

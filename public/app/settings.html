@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Настройки — tg-channel-bot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo"><span class="dot"></span> tg-channel-bot</div>
+    <a href="/app/"><span class="icon">◆</span>Дашборд</a>
+    <a href="/app/settings" class="active"><span class="icon">⚙</span>Настройки</a>
+    <a href="/app/chats"><span class="icon">☰</span>Мои чаты</a>
+    <a href="/app/ad-texts"><span class="icon">✎</span>Тексты объявлений</a>
+    <a href="/app/agents"><span class="icon">◈</span>Агенты</a>
+  </div>
+
+  <div class="main">
+    <div class="page-header">
+      <h1>Настройки канала</h1>
+      <p>Ниша, тон и частота публикаций</p>
+    </div>
+
+    <div class="card" style="max-width: 480px;">
+      <form id="settings-form">
+        <label>Username канала</label>
+        <input type="text" id="channel_username" placeholder="@hakeronme" required>
+
+        <label>Ниша</label>
+        <input type="text" id="niche" placeholder="крипта и финансы для начинающих" required>
+
+        <label>Тон / стиль</label>
+        <input type="text" id="tone" placeholder="дружелюбный эксперт, простыми словами">
+
+        <label>Постов в день</label>
+        <select id="posts_per_day">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4" selected>4</option>
+          <option value="5">5</option>
+        </select>
+
+        <button type="submit" class="btn">Сохранить</button>
+        <span id="save-status" class="field-hint" style="display:none; margin-top: 12px;"></span>
+      </form>
+    </div>
+  </div>
+
+<script>
+async function loadSettings() {
+  const res = await fetch('/api/channel-config');
+  const data = await res.json();
+  if (data.config) {
+    document.getElementById('channel_username').value = data.config.channel_username || '';
+    document.getElementById('niche').value = data.config.niche || '';
+    document.getElementById('tone').value = data.config.tone || '';
+    document.getElementById('posts_per_day').value = data.config.posts_per_day || 4;
+  }
+}
+
+document.getElementById('settings-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    channel_username: document.getElementById('channel_username').value,
+    niche: document.getElementById('niche').value,
+    tone: document.getElementById('tone').value,
+    posts_per_day: document.getElementById('posts_per_day').value,
+  };
+  await fetch('/api/channel-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const status = document.getElementById('save-status');
+  status.style.display = 'block';
+  status.textContent = 'Сохранено ✓';
+  status.style.color = 'var(--accent)';
+  setTimeout(() => status.style.display = 'none', 2000);
+});
+
+loadSettings();
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мои чаты — tg-channel-bot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo"><span class="dot"></span> tg-channel-bot</div>
+    <a href="/app/"><span class="icon">◆</span>Дашборд</a>
+    <a href="/app/settings"><span class="icon">⚙</span>Настройки</a>
+    <a href="/app/chats" class="active"><span class="icon">☰</span>Мои чаты</a>
+    <a href="/app/ad-texts"><span class="icon">✎</span>Тексты объявлений</a>
+    <a href="/app/agents"><span class="icon">◈</span>Агенты</a>
+  </div>
+
+  <div class="main">
+    <div class="page-header">
+      <h1>Мои чаты</h1>
+      <p>Чаты, куда бот публикует объявления о канале. Вступи туда сам и добавь бота — статус покажет, получилось ли.</p>
+    </div>
+
+    <div class="card" style="max-width: 480px;">
+      <form id="add-chat-form">
+        <label>Username чата</label>
+        <input type="text" id="chat_id" placeholder="@example_chat" required>
+        <label>Название (для себя)</label>
+        <input type="text" id="chat_title" placeholder="Биржа рекламы">
+        <label>Частота (часы между постами в этот чат)</label>
+        <input type="number" id="frequency_hours" value="30" min="12">
+        <button type="submit" class="btn">Добавить чат</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Чат</th><th>Частота</th><th>Последний пост</th><th>Статус</th><th></th></tr>
+        </thead>
+        <tbody id="chats-table">
+          <tr><td colspan="5" class="empty-state">Загрузка...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+async function loadChats() {
+  const res = await fetch('/api/chats');
+  const data = await res.json();
+  const tbody = document.getElementById('chats-table');
+  if (!data.chats || data.chats.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">☰</div>Чатов пока нет — добавь первый выше</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.chats.map(c => `
+    <tr>
+      <td class="mono">${c.chat_title || c.chat_id}<br><span style="color:var(--text-dim); font-size:12px;">${c.chat_id}</span></td>
+      <td class="mono">${c.frequency_hours}ч</td>
+      <td class="mono">${c.last_posted_at ? new Date(c.last_posted_at).toLocaleString('ru-RU') : 'ещё не постили'}</td>
+      <td>${c.last_status === 'error' ? '<span class="badge danger">Ошибка — бот не добавлен?</span>' : c.last_posted_at ? '<span class="badge ok">Работает</span>' : '<span class="badge warn">Ожидает</span>'}</td>
+      <td><button class="btn-danger" style="border:none;background:none;cursor:pointer;" onclick="deleteChat(${c.id})">Удалить</button></td>
+    </tr>
+  `).join('');
+}
+
+async function deleteChat(id) {
+  await fetch('/api/chats/' + id, { method: 'DELETE' });
+  loadChats();
+}
+
+document.getElementById('add-chat-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    chat_id: document.getElementById('chat_id').value,
+    chat_title: document.getElementById('chat_title').value,
+    frequency_hours: document.getElementById('frequency_hours').value,
+  };
+  await fetch('/api/chats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  e.target.reset();
+  document.getElementById('frequency_hours').value = 30;
+  loadChats();
+});
+
+loadChats();
+</script>
+</body>
+</html>

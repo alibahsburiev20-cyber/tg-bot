@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тексты объявлений — tg-channel-bot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo"><span class="dot"></span> tg-channel-bot</div>
+    <a href="/app/"><span class="icon">◆</span>Дашборд</a>
+    <a href="/app/settings"><span class="icon">⚙</span>Настройки</a>
+    <a href="/app/chats"><span class="icon">☰</span>Мои чаты</a>
+    <a href="/app/ad-texts" class="active"><span class="icon">✎</span>Тексты объявлений</a>
+    <a href="/app/agents"><span class="icon">◈</span>Агенты</a>
+  </div>
+
+  <div class="main">
+    <div class="page-header">
+      <h1>Тексты объявлений</h1>
+      <p>Варианты текста для ротации при постинге в чаты — так объявления не выглядят как спам-копипаста</p>
+    </div>
+
+    <div class="card" style="max-width: 560px;">
+      <form id="add-text-form">
+        <label>Текст объявления</label>
+        <textarea id="text_variant" rows="3" placeholder="Новый канал про крипту простыми словами: t.me/hakeronme" required></textarea>
+        <button type="submit" class="btn">Добавить вариант</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div id="texts-list">
+        <div class="empty-state">Загрузка...</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+async function loadTexts() {
+  const res = await fetch('/api/ad-texts');
+  const data = await res.json();
+  const list = document.getElementById('texts-list');
+  if (!data.texts || data.texts.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">✎</div>Пока нет вариантов текста</div>';
+    return;
+  }
+  list.innerHTML = data.texts.map(t => `
+    <div class="post-item">
+      <div class="post-text" style="flex:1;">${t.text_variant}</div>
+      <button class="btn-danger" style="border:none;background:none;cursor:pointer;height:fit-content;" onclick="deleteText(${t.id})">Удалить</button>
+    </div>
+  `).join('');
+}
+
+async function deleteText(id) {
+  await fetch('/api/ad-texts/' + id, { method: 'DELETE' });
+  loadTexts();
+}
+
+document.getElementById('add-text-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text_variant = document.getElementById('text_variant').value;
+  await fetch('/api/ad-texts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text_variant }),
+  });
+  e.target.reset();
+  loadTexts();
+});
+
+loadTexts();
+</script>
+</body>
+</html>
