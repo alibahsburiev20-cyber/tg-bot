@@ -60,13 +60,30 @@ async function fetchArticleText(url) {
 }
 
 async function fetchNews(niche) {
-  const feedUrl = "https://cointelegraph.com/rss";
-  const res = await fetch(feedUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-  const xml = await res.text();
-  const items = parseRSSItems(xml, 5);
+  const feeds = [
+    "https://cointelegraph.com/rss",
+    "https://www.coindesk.com/arc/outboundfeeds/rss",
+    "https://decrypt.co/feed",
+    "https://news.bitcoin.com/feed",
+  ];
+
+  let allItems = [];
+  for (const feedUrl of feeds) {
+    try {
+      const res = await fetch(feedUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+      const xml = await res.text();
+      const items = parseRSSItems(xml, 6);
+      allItems = allItems.concat(items);
+    } catch (e) {
+      // если один источник недоступен - пропускаем, остальные всё равно дадут новости
+    }
+  }
+
+  // Перемешиваем, чтобы не всегда брать в одном порядке источников
+  allItems.sort(() => Math.random() - 0.5);
 
   const withFullText = [];
-  for (const item of items) {
+  for (const item of allItems.slice(0, 12)) {
     const fullText = await fetchArticleText(item.link);
     withFullText.push({ ...item, fullText: fullText || item.description });
   }
@@ -116,9 +133,9 @@ async function generateImage(env, imagePrompt) {
   return result.image;
 }
 
-async function publishToChannelWithPhoto(env, text, imageBase64) {
+async function publishToChannelWithPhoto(env, chatUsername, text, imageBase64) {
   const formData = new FormData();
-  formData.append("chat_id", env.CHANNEL_USERNAME);
+  formData.append("chat_id", chatUsername);
   formData.append("caption", text);
   const bytes = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0));
   formData.append("photo", new Blob([bytes], { type: "image/png" }), "post.png");
@@ -128,13 +145,13 @@ async function publishToChannelWithPhoto(env, text, imageBase64) {
   return res.json();
 }
 
-async function publishToChannel(env, text) {
+async function publishToChannel(env, chatUsername, text) {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chat_id: env.CHANNEL_USERNAME,
+      chat_id: chatUsername,
       text: text,
     }),
   });
@@ -152,7 +169,7 @@ async function postScheduledContent(env) {
 
   const postText = await generatePost(env, config.niche, config.tone, recentTopics);
   const topic = await extractTopic(env, postText);
-  const tgResult = await publishToChannel(env, postText);
+  const tgResult = await publishToChannel(env, config.channel_username, postText);
 
   await env.DB.prepare(
     "INSERT INTO content_log (post_text, topic_tags) VALUES (?, ?)"
@@ -166,12 +183,25 @@ async function postScheduledNewsContent(env) {
   if (!config) return { error: "no channel config found" };
 
   const recent = await env.DB.prepare(
-    "SELECT topic_tags FROM content_log ORDER BY published_at DESC LIMIT 15"
+    "SELECT topic_tags, post_text FROM content_log ORDER BY published_at DESC LIMIT 20"
   ).all();
   const recentTopics = recent.results.map(r => r.topic_tags).filter(Boolean);
+  const recentTextsLower = recent.results.map(r => (r.post_text || "").toLowerCase());
 
-  const newsItems = await fetchNews(config.niche);
+  let newsItems = await fetchNews(config.niche);
   if (newsItems.length === 0) return { error: "no news fetched" };
+
+  // Жёсткая фильтрация: убираем новости, чьи ключевые слова заголовка уже явно встречались в недавних постах
+  newsItems = newsItems.filter(n => {
+    const titleWords = n.title.toLowerCase().split(/\s+/).filter(w => w.length > 5);
+    const overlapCount = titleWords.filter(w => recentTextsLower.some(t => t.includes(w))).length;
+    return overlapCount < 2; // если 2+ значимых слова заголовка уже были в постах - считаем повтором и выкидываем
+  });
+
+  if (newsItems.length === 0) {
+    // все новости оказались уже освещены - берём обычный не-новостной пост как fallback
+    return await postScheduledContent(env);
+  }
 
   const postText = await generateNewsPost(env, config.niche, config.tone, recentTopics, newsItems);
   const topic = await extractTopic(env, postText);
@@ -180,10 +210,10 @@ async function postScheduledNewsContent(env) {
   try {
     const imagePrompt = await generateImagePrompt(env, postText);
     const imageBase64 = await generateImage(env, imagePrompt);
-    tgResult = await publishToChannelWithPhoto(env, postText, imageBase64);
+    tgResult = await publishToChannelWithPhoto(env, config.channel_username, postText, imageBase64);
   } catch (e) {
     // если генерация картинки упала - публикуем хотя бы текстом
-    tgResult = await publishToChannel(env, postText);
+    tgResult = await publishToChannel(env, config.channel_username, postText);
   }
 
   await env.DB.prepare(
