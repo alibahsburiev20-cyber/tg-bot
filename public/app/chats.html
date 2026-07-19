@@ -61,7 +61,10 @@ async function loadChats() {
       <td class="mono">${c.frequency_hours}ч</td>
       <td class="mono">${c.last_posted_at ? new Date(c.last_posted_at).toLocaleString('ru-RU') : 'ещё не постили'}</td>
       <td>${c.last_status === 'error' ? '<span class="badge danger">Ошибка — бот не добавлен?</span>' : c.last_posted_at ? '<span class="badge ok">Работает</span>' : '<span class="badge warn">Ожидает</span>'}</td>
-      <td><button class="btn-danger" style="border:none;background:none;cursor:pointer;" onclick="deleteChat(${c.id})">Удалить</button></td>
+      <td>
+        <a href="https://t.me/${c.chat_id.replace('@','')}" target="_blank" style="color:var(--accent); font-size:13px; text-decoration:none; margin-right:12px;">Открыть чат →</a>
+        <button class="btn-danger" style="border:none;background:none;cursor:pointer;" onclick="deleteChat(${c.id})">Удалить</button>
+      </td>
     </tr>
   `).join('');
 }
