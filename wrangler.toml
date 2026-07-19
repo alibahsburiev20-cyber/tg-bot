@@ -2,6 +2,10 @@ name = "tg-channel-bot"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "tg-channel-bot"
@@ -11,7 +15,7 @@ database_id = "7243f600-429c-48a1-adf6-1f0845dc1194"
 binding = "AI"
 
 [triggers]
-crons = ["0 */4 * * *"]
+crons = ["0 6,11,16,20 * * *"]
 
 # Секреты (не в этом файле, добавляются командой):
 # npx wrangler secret put TELEGRAM_BOT_TOKEN
