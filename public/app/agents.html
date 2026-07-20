@@ -70,7 +70,15 @@
   </div>
 
 <script>
+async function checkAuth() {
+  const res = await fetch('/api/auth/me');
+  const data = await res.json();
+  if (!data.user) { window.location.href = '/app/login'; return false; }
+  return true;
+}
+
 async function loadRecommendations() {
+  if (!(await checkAuth())) return;
   const res = await fetch('/api/agent-recommendations');
   const data = await res.json();
   const box = document.getElementById('recommendations');

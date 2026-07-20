@@ -47,7 +47,15 @@
   </div>
 
 <script>
+async function checkAuth() {
+  const res = await fetch('/api/auth/me');
+  const data = await res.json();
+  if (!data.user) { window.location.href = '/app/login'; return false; }
+  return true;
+}
+
 async function loadChats() {
+  if (!(await checkAuth())) return;
   const res = await fetch('/api/chats');
   const data = await res.json();
   const tbody = document.getElementById('chats-table');

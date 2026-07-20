@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Вход — tg-channel-bot</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { align-items: center; justify-content: center; }
+  .login-box { text-align: center; max-width: 360px; }
+  .login-box .logo { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 24px; margin-bottom: 8px; }
+  .login-box p { color: var(--text-dim); margin-bottom: 24px; font-size: 14px; }
+</style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="logo"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);margin-right:8px;"></span>tg-channel-bot</div>
+    <p>Войди через Telegram, чтобы управлять своим каналом</p>
+    <div id="telegram-login"></div>
+  </div>
+
+<script>
+// Замени YOUR_BOT_USERNAME на username твоего бота (без @)
+const script = document.createElement('script');
+script.src = 'https://telegram.org/js/telegram-widget.js?22';
+script.setAttribute('data-telegram-login', 'Pickuptelechannelbot');
+script.setAttribute('data-size', 'large');
+script.setAttribute('data-radius', '8');
+script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+script.setAttribute('data-request-access', 'write');
+document.getElementById('telegram-login').appendChild(script);
+
+async function onTelegramAuth(user) {
+  const res = await fetch('/api/auth/telegram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  });
+  if (res.ok) {
+    window.location.href = '/app/';
+  } else {
+    alert('Ошибка входа, попробуй ещё раз');
+  }
+}
+</script>
+</body>
+</html>

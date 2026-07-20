@@ -22,10 +22,20 @@
       <p>Ниша, тон и частота публикаций</p>
     </div>
 
+    <div class="card" style="max-width: 480px; margin-bottom: 16px;">
+      <p style="font-size: 13px; color: var(--text-dim); line-height: 1.5;">
+        Как получить токен: напиши <a href="https://t.me/BotFather" target="_blank" style="color:var(--accent);">@BotFather</a> в Telegram → команда <span class="mono">/newbot</span> → следуй инструкции → получишь токен вида <span class="mono">123456:ABC-...</span>. Добавь этого бота администратором в свой канал с правом публикации.
+      </p>
+    </div>
+
     <div class="card" style="max-width: 480px;">
       <form id="settings-form">
+        <label>Токен бота (от @BotFather)</label>
+        <input type="text" id="bot_token" placeholder="123456789:AAH...">
+        <div class="field-hint" id="token-hint"></div>
+
         <label>Username канала</label>
-        <input type="text" id="channel_username" placeholder="@hakeronme" required>
+        <input type="text" id="channel_username" placeholder="@my_channel" required>
 
         <label>Ниша</label>
         <input type="text" id="niche" placeholder="крипта и финансы для начинающих" required>
@@ -49,7 +59,18 @@
   </div>
 
 <script>
+async function checkAuth() {
+  const res = await fetch('/api/auth/me');
+  const data = await res.json();
+  if (!data.user) {
+    window.location.href = '/app/login';
+    return false;
+  }
+  return true;
+}
+
 async function loadSettings() {
+  if (!(await checkAuth())) return;
   const res = await fetch('/api/channel-config');
   const data = await res.json();
   if (data.config) {
@@ -57,6 +78,9 @@ async function loadSettings() {
     document.getElementById('niche').value = data.config.niche || '';
     document.getElementById('tone').value = data.config.tone || '';
     document.getElementById('posts_per_day').value = data.config.posts_per_day || 4;
+    document.getElementById('token-hint').textContent = data.config.bot_token_set
+      ? 'Токен уже сохранён. Оставь поле пустым, если не хочешь его менять.'
+      : 'Токен ещё не задан — публикация не будет работать без него.';
   }
 }
 
@@ -68,16 +92,21 @@ document.getElementById('settings-form').addEventListener('submit', async (e) =>
     tone: document.getElementById('tone').value,
     posts_per_day: document.getElementById('posts_per_day').value,
   };
+  const tokenField = document.getElementById('bot_token').value.trim();
+  if (tokenField) body.bot_token = tokenField;
+
   await fetch('/api/channel-config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  document.getElementById('bot_token').value = '';
   const status = document.getElementById('save-status');
   status.style.display = 'block';
   status.textContent = 'Сохранено ✓';
   status.style.color = 'var(--accent)';
   setTimeout(() => status.style.display = 'none', 2000);
+  loadSettings();
 });
 
 loadSettings();

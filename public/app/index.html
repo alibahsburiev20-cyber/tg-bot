@@ -62,7 +62,20 @@
   </div>
 
 <script>
+async function checkAuth() {
+  const res = await fetch('/api/auth/me');
+  const data = await res.json();
+  if (!data.user) {
+    window.location.href = '/app/login';
+    return false;
+  }
+  return true;
+}
+
 async function loadDashboard() {
+  const authed = await checkAuth();
+  if (!authed) return;
+
   const res = await fetch('/api/dashboard');
   const data = await res.json();
 
