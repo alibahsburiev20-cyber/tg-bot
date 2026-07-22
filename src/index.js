@@ -424,12 +424,13 @@ async function handleApi(request, env, url) {
       await env.DB.prepare(
         "UPDATE channel_config SET channel_username=?, niche=?, tone=?, posts_per_day=?, bot_token=? WHERE id=?"
       ).bind(body.channel_username, body.niche, body.tone, body.posts_per_day, botToken, existing.id).run();
+      return Response.json({ ok: true, channel_id: existing.id });
     } else {
-      await env.DB.prepare(
+      const inserted = await env.DB.prepare(
         "INSERT INTO channel_config (channel_username, niche, tone, posts_per_day, bot_token, user_id) VALUES (?, ?, ?, ?, ?, ?)"
       ).bind(body.channel_username, body.niche, body.tone, body.posts_per_day, botToken, userId).run();
+      return Response.json({ ok: true, channel_id: inserted.meta.last_row_id });
     }
-    return Response.json({ ok: true });
   }
 
   // GET/POST /api/chats
