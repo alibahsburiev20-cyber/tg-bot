@@ -1,15 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg: #0B0E14;
-  --card: #151922;
-  --card-border: #232935;
-  --accent: #00D9A3;
-  --accent-dim: #00D9A322;
-  --text: #F0F2F5;
-  --text-dim: #5B6472;
-  --danger: #FF5C5C;
-  --warning: #FFB020;
+  --bg: #0A0C10;
+  --card: #12141A;
+  --card-border: #1E212A;
+  --accent: #3ECF8E;
+  --accent-dim: #3ECF8E14;
+  --text: #EDEEF0;
+  --text-dim: #6B7280;
+  --danger: #F87171;
+  --warning: #FBBF24;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -53,11 +53,10 @@ h1, h2, h3, .display {
 }
 
 .sidebar .logo .dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
 }
 
 .sidebar a {
@@ -103,9 +102,9 @@ h1, h2, h3, .display {
 .card {
   background: var(--card);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 12px;
 }
 
 .card-grid {
@@ -134,12 +133,12 @@ h1, h2, h3, .display {
 /* Buttons */
 .btn {
   background: var(--accent);
-  color: #0B0E14;
+  color: #0A0C10;
   border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
+  padding: 9px 16px;
+  border-radius: 7px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   font-family: 'Inter', sans-serif;
   transition: opacity 0.15s ease;
@@ -235,34 +234,12 @@ tr:last-child td { border-bottom: none; }
 .post-item .post-text { font-size: 14px; line-height: 1.5; color: var(--text); }
 .post-item .post-meta { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
 
-/* Pulse line (signature element) */
-.pulse-wrap {
-  height: 60px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  margin-top: 8px;
-}
-.pulse-line {
-  width: 100%;
-  height: 40px;
-}
-.pulse-line path {
-  stroke: var(--accent);
-  stroke-width: 2;
-  fill: none;
-  stroke-dasharray: 400;
-  stroke-dashoffset: 400;
-  animation: draw 2s ease forwards;
-}
-@keyframes draw { to { stroke-dashoffset: 0; } }
-
 .empty-state {
   text-align: center;
   padding: 40px 20px;
   color: var(--text-dim);
 }
-.empty-state .icon { font-size: 32px; margin-bottom: 12px; }
+.empty-state .icon { font-size: 32px; margin-bottom: 12px; opacity: 0.5; }
 
 .agent-row {
   display: flex;
@@ -273,9 +250,8 @@ tr:last-child td { border-bottom: none; }
 }
 .agent-row:last-child { border-bottom: none; }
 .agent-dot {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
   flex-shrink: 0;
 }
 .agent-row .agent-name { font-weight: 600; font-size: 14px; }
