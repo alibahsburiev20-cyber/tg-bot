@@ -1,15 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg: #0A0C10;
-  --card: #12141A;
-  --card-border: #1E212A;
-  --accent: #3ECF8E;
-  --accent-dim: #3ECF8E14;
-  --text: #EDEEF0;
-  --text-dim: #6B7280;
-  --danger: #F87171;
-  --warning: #FBBF24;
+  --bg: #FAFAFA;
+  --card: #FFFFFF;
+  --card-border: #E5E5E5;
+  --accent: #18181B;
+  --accent-dim: #18181B0A;
+  --text: #18181B;
+  --text-dim: #71717A;
+  --danger: #DC2626;
+  --warning: #D97706;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -133,11 +133,11 @@ h1, h2, h3, .display {
 /* Buttons */
 .btn {
   background: var(--accent);
-  color: #0A0C10;
+  color: #FFFFFF;
   border: none;
   padding: 9px 16px;
   border-radius: 7px;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13px;
   cursor: pointer;
   font-family: 'Inter', sans-serif;
