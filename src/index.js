@@ -161,8 +161,8 @@ async function publishToChannel(botToken, chatUsername, text) {
 // Обрабатывает контент для ОДНОГО конкретного канала (config уже содержит user_id, bot_token и т.д.)
 async function postScheduledContentForChannel(env, config) {
   const recent = await env.DB.prepare(
-    "SELECT topic_tags FROM content_log WHERE user_id = ? ORDER BY published_at DESC LIMIT 15"
-  ).bind(config.user_id).all();
+    "SELECT topic_tags FROM content_log WHERE channel_id = ? ORDER BY published_at DESC LIMIT 15"
+  ).bind(config.id).all();
   const recentTopics = recent.results.map(r => r.topic_tags).filter(Boolean);
 
   const postText = await generatePost(env, config.niche, config.tone, recentTopics);
@@ -170,16 +170,16 @@ async function postScheduledContentForChannel(env, config) {
   const tgResult = await publishToChannel(config.bot_token, config.channel_username, postText);
 
   await env.DB.prepare(
-    "INSERT INTO content_log (post_text, topic_tags, user_id) VALUES (?, ?, ?)"
-  ).bind(postText, topic, config.user_id).run();
+    "INSERT INTO content_log (post_text, topic_tags, user_id, channel_id) VALUES (?, ?, ?, ?)"
+  ).bind(postText, topic, config.user_id, config.id).run();
 
   return { posted: true, topic, telegram: tgResult };
 }
 
 async function postScheduledNewsContentForChannel(env, config) {
   const recent = await env.DB.prepare(
-    "SELECT topic_tags, post_text FROM content_log WHERE user_id = ? ORDER BY published_at DESC LIMIT 20"
-  ).bind(config.user_id).all();
+    "SELECT topic_tags, post_text FROM content_log WHERE channel_id = ? ORDER BY published_at DESC LIMIT 20"
+  ).bind(config.id).all();
   const recentTopics = recent.results.map(r => r.topic_tags).filter(Boolean);
   const recentTextsLower = recent.results.map(r => (r.post_text || "").toLowerCase());
 
@@ -209,8 +209,8 @@ async function postScheduledNewsContentForChannel(env, config) {
   }
 
   await env.DB.prepare(
-    "INSERT INTO content_log (post_text, topic_tags, user_id) VALUES (?, ?, ?)"
-  ).bind(postText, topic, config.user_id).run();
+    "INSERT INTO content_log (post_text, topic_tags, user_id, channel_id) VALUES (?, ?, ?, ?)"
+  ).bind(postText, topic, config.user_id, config.id).run();
 
   return { posted: true, topic, source: "news", telegram: tgResult };
 }
@@ -254,7 +254,9 @@ async function postAdsToChats(env) {
 
   const results = [];
   for (const chat of dueChats.results) {
-    const config = await env.DB.prepare("SELECT bot_token FROM channel_config WHERE user_id = ? LIMIT 1").bind(chat.user_id).first();
+    const config = chat.channel_id
+      ? await env.DB.prepare("SELECT bot_token FROM channel_config WHERE id = ?").bind(chat.channel_id).first()
+      : await env.DB.prepare("SELECT bot_token FROM channel_config WHERE user_id = ? LIMIT 1").bind(chat.user_id).first();
     const texts = await env.DB.prepare("SELECT * FROM ad_texts WHERE user_id = ?").bind(chat.user_id).all();
     if (!config || !config.bot_token || texts.results.length === 0) continue;
 
@@ -330,8 +332,9 @@ function getSessionUserId(request, env) {
   return verifySessionToken(match[1], env.TELEGRAM_BOT_TOKEN);
 }
 
-async function getSubscriberCount(env, channelUsername) {
+async function getSubscriberCount(botToken, channelUsername) {
   try {
+    const url = `https://api.telegram.org/bot${botToken}/getChatMemberCount?chat_id=${encodeURIComponent(channelUsername)}`;
     const res = await fetch(url);
     const json = await res.json();
     return json.ok ? json.result : null;
@@ -374,15 +377,24 @@ async function handleApi(request, env, url) {
     return Response.json({ error: "not authenticated" }, { status: 401 });
   }
 
-  // GET /api/dashboard
+  // GET /api/channels - список всех каналов пользователя
+  if (path === "/api/channels" && method === "GET") {
+    const channels = await env.DB.prepare("SELECT id, channel_username, niche FROM channel_config WHERE user_id = ? ORDER BY id").bind(userId).all();
+    return Response.json({ channels: channels.results });
+  }
+
+  // GET /api/dashboard?channel_id=N
   if (path === "/api/dashboard" && method === "GET") {
-    const config = await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? LIMIT 1").bind(userId).first();
-    const posts = await env.DB.prepare(
-      "SELECT * FROM content_log WHERE user_id = ? ORDER BY published_at DESC LIMIT 10"
-    ).bind(userId).all();
-    const postsCountRow = await env.DB.prepare("SELECT COUNT(*) as c FROM content_log WHERE user_id = ?").bind(userId).first();
-    const chatsCountRow = await env.DB.prepare("SELECT COUNT(*) as c FROM ad_chats WHERE user_id = ?").bind(userId).first();
-    const subscribers = config ? await getSubscriberCount(env, config.channel_username) : null;
+    const channelId = url.searchParams.get("channel_id");
+    const config = channelId
+      ? await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? AND id = ?").bind(userId, channelId).first()
+      : await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? ORDER BY id LIMIT 1").bind(userId).first();
+    const posts = config ? await env.DB.prepare(
+      "SELECT * FROM content_log WHERE user_id = ? AND channel_id = ? ORDER BY published_at DESC LIMIT 10"
+    ).bind(userId, config.id).all() : { results: [] };
+    const postsCountRow = config ? await env.DB.prepare("SELECT COUNT(*) as c FROM content_log WHERE user_id = ? AND channel_id = ?").bind(userId, config.id).first() : { c: 0 };
+    const chatsCountRow = config ? await env.DB.prepare("SELECT COUNT(*) as c FROM ad_chats WHERE user_id = ? AND channel_id = ?").bind(userId, config.id).first() : { c: 0 };
+    const subscribers = (config && config.bot_token) ? await getSubscriberCount(config.bot_token, config.channel_username) : null;
 
     return Response.json({
       channel: config || null,
@@ -395,14 +407,18 @@ async function handleApi(request, env, url) {
 
   // GET/POST /api/channel-config
   if (path === "/api/channel-config" && method === "GET") {
-    const config = await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? LIMIT 1").bind(userId).first();
-    // не отдаём bot_token на фронт целиком, только признак что он задан
+    const channelId = url.searchParams.get("channel_id");
+    const config = channelId
+      ? await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? AND id = ?").bind(userId, channelId).first()
+      : await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? ORDER BY id LIMIT 1").bind(userId).first();
     if (config) { config.bot_token_set = !!config.bot_token; delete config.bot_token; }
     return Response.json({ config: config || null });
   }
   if (path === "/api/channel-config" && method === "POST") {
     const body = await request.json();
-    const existing = await env.DB.prepare("SELECT id, bot_token FROM channel_config WHERE user_id = ? LIMIT 1").bind(userId).first();
+    const existing = body.channel_id
+      ? await env.DB.prepare("SELECT id, bot_token FROM channel_config WHERE user_id = ? AND id = ?").bind(userId, body.channel_id).first()
+      : null;
     const botToken = body.bot_token || (existing ? existing.bot_token : null);
     if (existing) {
       await env.DB.prepare(
@@ -418,14 +434,18 @@ async function handleApi(request, env, url) {
 
   // GET/POST /api/chats
   if (path === "/api/chats" && method === "GET") {
-    const chats = await env.DB.prepare("SELECT * FROM ad_chats WHERE user_id = ? ORDER BY id DESC").bind(userId).all();
+    const channelId = url.searchParams.get("channel_id");
+    const chats = channelId
+      ? await env.DB.prepare("SELECT * FROM ad_chats WHERE user_id = ? AND channel_id = ? ORDER BY id DESC").bind(userId, channelId).all()
+      : await env.DB.prepare("SELECT * FROM ad_chats WHERE user_id = ? ORDER BY id DESC").bind(userId).all();
     return Response.json({ chats: chats.results });
   }
   if (path === "/api/chats" && method === "POST") {
     const body = await request.json();
+    const config = await env.DB.prepare("SELECT id FROM channel_config WHERE user_id = ? ORDER BY id LIMIT 1").bind(userId).first();
     await env.DB.prepare(
-      "INSERT INTO ad_chats (chat_id, chat_title, frequency_hours, user_id) VALUES (?, ?, ?, ?)"
-    ).bind(body.chat_id, body.chat_title || "", body.frequency_hours || 30, userId).run();
+      "INSERT INTO ad_chats (chat_id, chat_title, frequency_hours, user_id, channel_id) VALUES (?, ?, ?, ?, ?)"
+    ).bind(body.chat_id, body.chat_title || "", body.frequency_hours || 30, userId, config ? config.id : null).run();
     return Response.json({ ok: true });
   }
   // DELETE /api/chats/:id
