@@ -79,8 +79,8 @@ async function loadSettings() {
     document.getElementById('tone').value = data.config.tone || '';
     document.getElementById('posts_per_day').value = data.config.posts_per_day || 4;
     document.getElementById('token-hint').textContent = data.config.bot_token_set
-      ? 'Токен уже сохранён. Оставь поле пустым, если не хочешь его менять.'
-      : 'Токен ещё не задан — публикация не будет работать без него.';
+      ? '✓ Токен сохранён и работает. Поле ниже специально всегда пустое (токен не показывается повторно из соображений безопасности) — впиши новый, только если хочешь его заменить.'
+      : 'Токен ещё не задан — без него публикация работать не будет.';
   }
 }
 
