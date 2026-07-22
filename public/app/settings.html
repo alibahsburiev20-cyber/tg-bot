@@ -23,6 +23,14 @@
     </div>
 
     <div class="card" style="max-width: 480px; margin-bottom: 16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <strong style="font-size:14px;">Мои каналы</strong>
+        <button class="btn" id="btn-new-channel" style="padding:6px 12px; font-size:12px;">+ Добавить канал</button>
+      </div>
+      <div id="channels-list" style="font-size:13px; color:var(--text-dim);">Загрузка...</div>
+    </div>
+
+    <div class="card" style="max-width: 480px; margin-bottom: 16px;">
       <p style="font-size: 13px; color: var(--text-dim); line-height: 1.5;">
         Как получить токен: напиши <a href="https://t.me/BotFather" target="_blank" style="color:var(--accent);">@BotFather</a> в Telegram → команда <span class="mono">/newbot</span> → следуй инструкции → получишь токен вида <span class="mono">123456:ABC-...</span>. Добавь этого бота администратором в свой канал с правом публикации.
       </p>
@@ -59,6 +67,40 @@
   </div>
 
 <script>
+let currentChannelId = null;
+
+async function loadChannelsList() {
+  const res = await fetch('/api/channels');
+  const data = await res.json();
+  const box = document.getElementById('channels-list');
+  if (!data.channels || data.channels.length === 0) {
+    box.innerHTML = 'Каналов пока нет — нажми "Добавить канал"';
+    currentChannelId = null;
+    return;
+  }
+  box.innerHTML = data.channels.map(c => `
+    <div style="padding:6px 0; cursor:pointer; color: ${c.id == currentChannelId ? 'var(--text)' : 'var(--text-dim)'};" onclick="selectChannel(${c.id})">
+      ${c.id == currentChannelId ? '→ ' : ''}${c.channel_username} <span style="opacity:0.7;">— ${c.niche}</span>
+    </div>
+  `).join('');
+  if (!currentChannelId) currentChannelId = data.channels[0].id;
+}
+
+function selectChannel(id) {
+  currentChannelId = id;
+  loadSettings();
+}
+
+document.getElementById('btn-new-channel').addEventListener('click', () => {
+  currentChannelId = null;
+  document.getElementById('channel_username').value = '';
+  document.getElementById('niche').value = '';
+  document.getElementById('tone').value = '';
+  document.getElementById('posts_per_day').value = 4;
+  document.getElementById('bot_token').value = '';
+  document.getElementById('token-hint').textContent = 'Новый канал — укажи токен бота от @BotFather';
+});
+
 async function checkAuth() {
   const res = await fetch('/api/auth/me');
   const data = await res.json();
@@ -71,7 +113,10 @@ async function checkAuth() {
 
 async function loadSettings() {
   if (!(await checkAuth())) return;
-  const res = await fetch('/api/channel-config');
+  await loadChannelsList();
+  if (!currentChannelId) return;
+
+  const res = await fetch('/api/channel-config?channel_id=' + currentChannelId);
   const data = await res.json();
   if (data.config) {
     document.getElementById('channel_username').value = data.config.channel_username || '';
@@ -92,19 +137,23 @@ document.getElementById('settings-form').addEventListener('submit', async (e) =>
     tone: document.getElementById('tone').value,
     posts_per_day: document.getElementById('posts_per_day').value,
   };
+  if (currentChannelId) body.channel_id = currentChannelId;
   const tokenField = document.getElementById('bot_token').value.trim();
   if (tokenField) body.bot_token = tokenField;
 
-  await fetch('/api/channel-config', {
+  const res = await fetch('/api/channel-config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  const result = await res.json();
+  if (result.channel_id) currentChannelId = result.channel_id;
+
   document.getElementById('bot_token').value = '';
   const status = document.getElementById('save-status');
   status.style.display = 'block';
   status.textContent = 'Сохранено ✓';
-  status.style.color = 'var(--accent)';
+  status.style.color = 'var(--text)';
   setTimeout(() => status.style.display = 'none', 2000);
   loadSettings();
 });
