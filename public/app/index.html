@@ -122,7 +122,7 @@ async function loadDashboard() {
 document.getElementById('btn-generate').addEventListener('click', async (e) => {
   e.target.disabled = true;
   e.target.textContent = 'Генерирую...';
-  await fetch('/run-content');
+  await fetch('/run-content?channel_id=' + currentChannelId);
   await loadDashboard();
   e.target.disabled = false;
   e.target.textContent = 'Сгенерировать пост сейчас';
@@ -131,7 +131,7 @@ document.getElementById('btn-generate').addEventListener('click', async (e) => {
 document.getElementById('btn-generate-news').addEventListener('click', async (e) => {
   e.target.disabled = true;
   e.target.textContent = 'Генерирую...';
-  await fetch('/run-news-content');
+  await fetch('/run-news-content?channel_id=' + currentChannelId);
   await loadDashboard();
   e.target.disabled = false;
   e.target.textContent = 'Новостной пост с картинкой';
