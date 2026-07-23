@@ -216,15 +216,19 @@ async function postScheduledNewsContentForChannel(env, config) {
 }
 
 // Обёртки для ручного вызова через API одним конкретным юзером (по userId из сессии)
-async function postScheduledContent(env, userId) {
-  const config = await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? LIMIT 1").bind(userId).first();
+async function postScheduledContent(env, userId, channelId) {
+  const config = channelId
+    ? await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? AND id = ?").bind(userId, channelId).first()
+    : await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? ORDER BY id LIMIT 1").bind(userId).first();
   if (!config) return { error: "no channel config found" };
   if (!config.bot_token) return { error: "bot token not set" };
   return postScheduledContentForChannel(env, config);
 }
 
-async function postScheduledNewsContent(env, userId) {
-  const config = await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? LIMIT 1").bind(userId).first();
+async function postScheduledNewsContent(env, userId, channelId) {
+  const config = channelId
+    ? await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? AND id = ?").bind(userId, channelId).first()
+    : await env.DB.prepare("SELECT * FROM channel_config WHERE user_id = ? ORDER BY id LIMIT 1").bind(userId).first();
   if (!config) return { error: "no channel config found" };
   if (!config.bot_token) return { error: "bot token not set" };
   return postScheduledNewsContentForChannel(env, config);
@@ -526,9 +530,10 @@ export default {
     if (url.pathname === "/run-content" || url.pathname === "/run-news-content") {
       const userId = await getSessionUserId(request, env);
       if (!userId) return Response.json({ error: "not authenticated" }, { status: 401 });
+      const channelId = url.searchParams.get("channel_id");
       const result = url.pathname === "/run-content"
-        ? await postScheduledContent(env, userId)
-        : await postScheduledNewsContent(env, userId);
+        ? await postScheduledContent(env, userId, channelId)
+        : await postScheduledNewsContent(env, userId, channelId);
       return Response.json(result);
     }
 
